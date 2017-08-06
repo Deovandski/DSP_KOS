@@ -1,0 +1,247 @@
+//Xplorer Science Vessel
+CLEARSCREEN.
+
+set targetAp to 75000. // Apoapsis
+set targetPe to 75000.  // Periapsis
+set targetHdg to 90. // Heading 
+set targetLaunchPitch to 89. // Desired Pitch at launch
+set currentScriptVersion to "v0.4".
+set ApDiff to 0.
+set ApPercentageDiff to 0.
+set PeDiff to 0.
+set PePercentageDiff to 0.
+set heightToApDiff to 0.
+set heightToApPercentageDiff to 0.
+set speedDiff to 0.
+set speedPercentageDiff to 0.
+
+// Startup 
+LOCK STEERING TO UP.
+RSC OFF.
+SAS OFF.
+LIGHTS ON.
+SET V0 TO GetVoice(0).
+systemSongPlay().
+set fairingsNotDeployed to true.
+
+FROM {local countdown is 10.} UNTIL countdown = 0 STEP {SET countdown to countdown - 1.} DO {
+    IF countdown = 0 {
+            stage.
+            LOCK STEERING TO R(targetHdg, targetLaunchPitch, 0).
+            V0:PLAY( NOTE( 250, 0.2) ).
+            WAIT 2.
+    } ELSE {
+            guiUpdate("Countdown for Launch", countdown).
+            V0:PLAY( NOTE( 150, 0.1) ).
+            WAIT 1.
+    }
+}
+V0:PLAY( NOTE( 450, 0.25) ).
+V0:PLAY( NOTE( 450, 0.25) ).
+// Main Ascent controller.
+until ship:Apoapsis >= targetAp {
+      mathCalcs().
+	if ship:maxthrust = 0 {
+            performStaging().
+	} else if ship:Apoapsis < 300{
+            guiUpdate("Awaiting Ascent Avionics activation...", "").
+	} else if ship:Apoapsis > 300 and ship:Apoapsis < 700 {
+            guiUpdate("Currently under Avionics Mode #1.", "Ascent Avionics control under 700m").
+            avionicsMasterControl(1).
+	} else if ship:Apoapsis >= 700 and ship:Apoapsis < 20000 {
+            guiUpdate("Currently under Avionics Mode #2.", "Ascent Avionics control between 700m and 20km").
+		avionicsMasterControl(2).
+	} else if ship:Apoapsis >= 20000 and ship:Apoapsis < 45000 {
+            guiUpdate("Currently under Avionics Mode #3.", "Ascent Avionics control between 20km and 45km").
+		avionicsMasterControl(3).
+	} else if ship:Apoapsis >= 45000 and ship:Apoapsis < targetAp{
+            guiUpdate("Currently under Avionics Mode #4.", "Ascent Avionics control Above 45km into Target Apoapsis of " + targetAp).
+		avionicsMasterControl(4).
+            if fairingsNotDeployed {
+                  performStaging().
+                  set fairingsNotDeployed to false.
+                  V0:PLAY( NOTE( 250, 0.20) ).
+                  V0:PLAY( NOTE( 350, 0.20) ).
+                  V0:PLAY( NOTE( 250, 0.20) ).
+            }
+	}.
+      else{
+            ABORT.
+      }
+}.
+handOffController("Circularization Avionics").
+until ship:Periapsis >= targetPe {
+      mathCalcs().
+	if ship:maxthrust = 0 {
+            performStaging().
+	} else if PePercentageDiff >= 2.0 and heightToApPercentageDiff < 0.25 {
+            LOCK STEERING TO HEADING(targetHdg, -1).
+            LOCK THROTTLE TO 1.0.
+            guiUpdate("Circularization Avionics control","Performing Major Circularization.").
+      } else if PePercentageDiff > 1.0 and PePercentageDiff <= 2.0 and heightToApPercentageDiff < 0.03 {
+            LOCK STEERING TO HEADING(targetHdg, 0).
+            LOCK THROTTLE TO PePercentageDiff - 1.00.
+            guiUpdate("Circularization Avionics control","Performing Normal Circularization.").
+      } else if PePercentageDiff >= 0.0 and PePercentageDiff <= 1.0 and heightToApDiff < 100 {
+            LOCK STEERING TO HEADING(targetHdg, 0).
+            LOCK THROTTLE TO PePercentageDiff.
+            guiUpdate("Circularization Avionics control","Performing Fine-tune Circularization.").
+      } else {
+            guiUpdate("Circularization Avionics control","Awaiting...").
+            LOCK THROTTLE TO 0.0.
+            LOCK STEERING TO PROGRADE.
+            WAIT 3.
+      }
+}
+handOffController("Program END").
+systemSongPlay().
+CLEARSCREEN.
+set ship:control:pilotmainthrottle to 0.
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Functions
+
+function mathCalcs{
+      set ApDiff to targetAp - ship:Apoapsis.
+      set ApPercentageDiff to ApDiff / targetAp.
+      set PeDiff to targetPe - ship:Periapsis.
+      set PePercentageDiff to PeDiff / targetPe.
+      set heightToApDiff to ship:Apoapsis - ship:Altitude.
+      set heightToApPercentageDiff to heightToApDiff / ship:Apoapsis.
+}
+
+
+// GUI function
+function guiUpdate{
+      PARAMETER statusMessage.
+      PARAMETER extraPayload.
+      CLEARSCREEN.
+      PRINT "-Xplorer Science Vessel - Automated Vessel Launch to LKO-".
+      PRINT "------------------Deo's Launch Script--------------------".
+      PRINT "------------------------" + currentScriptVersion + "-----------------------------".
+      PRINT "---------------------------------------------------------".
+      PRINT "".
+      PRINT "".
+      PRINT statusMessage.
+      PRINT extraPayload.
+      PRINT "".
+      PRINT "".
+      PRINT "---------------------------------------------------------".
+      PRINT "--------------------STATUS PANEL-------------------------".
+      PRINT "---------------------------------------------------------".
+      PRINT "-Ap: " + SHIP:Apoapsis.
+      PRINT "-Pe: " + SHIP:Periapsis.
+      PRINT "-Alt: " + SHIP:Altitude.
+      PRINT "-Speed: " + SHIP:velocity:surface:mag.
+      PRINT "-# DiffAp: " + ApDiff.
+      PRINT "-% DiffAp: " + ApPercentageDiff.
+      PRINT "-# DiffPe: " + PeDiff.
+      PRINT "-% DiffPe: " + PePercentageDiff.
+      PRINT "-# DiffToAp: " + heightToApDiff.
+      PRINT "-% DiffToAp: " + heightToApPercentageDiff.
+      PRINT "-# SpeedDiff: " + speedDiff.
+      PRINT "-% SpeedDiff: " + speedPercentageDiff.
+}
+
+// Perform Stage
+function performStaging{
+      stage.
+      guiUpdate("Performing Staging", "").
+      V0:PLAY( NOTE( 750, 0.25) ).
+      WAIT 1.
+}
+
+// Dynamic control to be done later as I get familiar with it...
+function avionicsMasterControl {
+      PARAMETER avionicsMode.
+      avionicsSpeedControl(avionicsMode).
+      avionicsHeadingControl(avionicsMode).
+}
+
+// Method for controlling speed
+function avionicsSpeedControl {
+      PARAMETER incomingMode.
+      if incomingMode = 1 {
+            avionicsGeneralSpeed(100, .95).
+      } else if incomingMode = 2 {
+            avionicsGeneralSpeed(300, .75).
+      } else if incomingMode = 3 {
+            // Force near Max output if there is a huge diff in height.
+            if heightToApPercentageDiff > 0.4 {
+                  avionicsGeneralSpeed(1000, .9).
+            }
+            else{
+                  avionicsGeneralSpeed(1000, .5).
+            }
+      } else if incomingMode = 4 {
+            avionicsGeneralSpeed(5000, .00).
+      }
+}
+
+// Lower modes general control
+function avionicsGeneralSpeed{
+      PARAMETER MaxVelocity.
+      PARAMETER MinPercentageThrust.
+      set speedDiff to MaxVelocity - ship:velocity:surface:mag.
+      set speedPercentageDiff to speedDiff / MaxVelocity.
+      if ship:velocity:surface:mag > MaxVelocity {
+            LOCK THROTTLE TO 0.0.
+      } else if ship:velocity:surface:mag < MaxVelocity * 0.5 {
+            LOCK THROTTLE TO 1.0.
+      } else {
+            if MinPercentageThrust > speedPercentageDiff {
+                  LOCK THROTTLE TO MinPercentageThrust.
+            }
+            else{
+                  LOCK THROTTLE TO speedPercentageDiff.
+            }
+      }
+}
+
+// Method for controlling Heading
+function avionicsHeadingControl {
+  PARAMETER incomingMode.
+      if incomingMode = 1 {
+            LOCK STEERING TO HEADING(targetHdg, targetLaunchPitch).
+      } else if incomingMode = 2 {
+            LOCK STEERING TO HEADING(targetHdg, targetLaunchPitch - 10).
+      } else if incomingMode = 3 {
+            LOCK STEERING TO HEADING(targetHdg, targetLaunchPitch - 35).
+      } else if incomingMode = 4 {
+            if ApPercentageDiff > 0.6 {
+                  set possiblePitch to 75.
+            } else if ApPercentageDiff < 0.1 {
+                  set possiblePitch to 0.
+            }
+            else {
+                  set angle to ApPercentageDiff * 100.
+                  set possiblePitch to angle.
+            }
+            LOCK STEERING TO HEADING(targetHdg, possiblePitch).
+      }
+}
+
+// handOff function between sections.
+function handOffController{
+  PARAMETER handOffTo.
+      V0:PLAY( NOTE( 450, 0.25) ).
+      V0:PLAY( NOTE( 450, 0.25) ).
+      guiUpdate("Handoff", "Handing off control to " + handOffTo).
+      LOCK THROTTLE TO 0.0.
+      LOCK STEERING TO PROGRADE.
+      WAIT 1.
+}
+
+ON ABORT {
+    handOffTo("Abort").
+    PRINT "System Failure!".
+}
+
+function systemSongPlay{
+      SET V0:WAVE to "sawtooth".
+      V0:PLAY( NOTE( 550, 0.5) ).
+      SET V0:WAVE to "square".
+      V0:PLAY( NOTE( 200, 0.5) ).
+      SET V0:WAVE to "sawtooth".
+      V0:PLAY( NOTE( 550, 0.5) ).
+}
