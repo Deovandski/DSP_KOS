@@ -1,0 +1,80 @@
+//Xplorer Science Vessel
+CLEARSCREEN.
+
+set targetAp to 75000. // Apoapsis
+set targetPe to 75000.  // Periapsis
+set targetHdg to 90. // Heading 
+set targetLaunchPitch to 89. // Desired Pitch at launch
+
+// Vars
+set launchSteering to R(targetHdg, targetLaunchPitch,0).
+
+// Force Vessel to lock up. 
+LOCK STEERING TO UP.
+
+PRINT "Xplorer Science Vessel - Automated Vessel Launch to LKO".
+PRINT "Deo - Created on 8/6/17".
+PRINT "v0.1".
+PRINT "Launching in:".
+FROM {local countdown is 10.} UNTIL countdown = 0 STEP {SET countdown to countdown - 1.} DO {
+    IF countdown = 0 {
+        stage.
+        PRINT "LAUNCH!".
+        WAIT 2.
+        CLEARSCREEN.
+        LOCK STEERING TO launchSteering.
+    } ELSE {
+        PRINT countdown.
+        WAIT 1.
+    }
+}
+
+// Main controller.
+until ship:Apoapsis >= targetAp {
+      PRINT "Calculating Avionics:".
+	if ship:maxthrust = 0 {
+        stage.
+        print "Performing Staging".
+	} else if ship:altitude > 300 and ship:altitude < 700 {
+        CLEARSCREEN.
+        print "Currently under Avionics Mode #1".
+		avionicsControl(targetLaunchPitch, 300).
+	} else if ship:altitude >= 700 and ship:altitude < 20000 {
+        CLEARSCREEN.
+        print "Currently under Avionics Mode #2".
+		avionicsControl(targetLaunchPitch - 15, 750).
+	} else if ship:altitude >= 20000 and ship:altitude < 45000 {
+        CLEARSCREEN.
+        print "Currently under Avionics Mode #3".
+		avionicsControl(targetLaunchPitch - 45, 750).
+	} else if ship:altitude >= 45000 {
+        CLEARSCREEN.
+        print "Currently under Avionics Mode #4".
+		avionicsControl(0, 750).
+	}.
+}.
+
+// Functions
+
+// Should be dynamic instead of hardcoded vals, but who cares?
+function avionicsControl {
+  PARAMETER incomingPitch.
+  PARAMETER MaxVelocity.
+
+  	if ship:velocity:surface:mag < MaxVelocity * 0.5 {
+        LOCK THROTTLE TO 1.0.
+  	} else if ship:velocity:surface:mag < MaxVelocity * 0.6 {
+        LOCK THROTTLE TO 0.75.
+  	} else if ship:velocity:surface:mag > MaxVelocity * 0.7 {
+        LOCK THROTTLE TO 0.65.
+  	} else if ship:velocity:surface:mag > MaxVelocity * 0.8 {
+        LOCK THROTTLE TO 0.55.
+  	} else if ship:velocity:surface:mag < MaxVelocity * 0.9 {
+        LOCK THROTTLE TO 0.45.
+  	} else if ship:velocity:surface:mag > MaxVelocity * 0.95 {
+        LOCK THROTTLE TO 0.30.
+  	} else if ship:velocity:surface:mag > MaxVelocity * 0.99 {
+        LOCK THROTTLE TO 0.25.
+    }
+    LOCK STEERING TO R(incomingPitch, 0, 0).
+}
